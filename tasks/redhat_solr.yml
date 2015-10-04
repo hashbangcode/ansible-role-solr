@@ -1,0 +1,111 @@
+---
+- name: download Solr
+  command: wget http://www.mirrorservice.org/sites/ftp.apache.org/lucene/solr/4.7.2/solr-4.7.2.tgz chdir=/home/{{ user }} creates=/home/{{ user }}/solr-4.7.2.tgz
+
+- name: extract Solr
+  command: tar -zxf /home/{{ user }}/solr-4.7.2.tgz chdir=/home/{{ user }} creates=/home/{{ user }}/solr-4.7.2
+
+- name: copy Solr war file
+  command: cp /home/{{ user }}/solr-4.7.2/dist/solr-4.7.2.war /var/lib/tomcat6/webapps/solr.war creates=/var/lib/tomcat6/webapps/solr.war
+  sudo: true
+
+- name: list solr files (in order to copy)
+  command: ls -1 /home/{{ user }}/solr-4.7.2/example/solr/
+  register: solrfiles
+
+- name: copy Solr instance
+  command: cp -ar /home/{{ user }}/solr-4.7.2/example/solr/{{ item }} /home/solr creates=/home/solr/{{ item }}
+  sudo: true
+  with_items: solrfiles.stdout_lines
+
+- name: rename the collection1 directory to {{ default_collection_name }}
+  command: mv /home/solr/collection1 /home/solr/{{ default_collection_name }} creates=/home/solr/{{ default_collection_name }}
+  sudo: true
+
+- name: remove the collection1 collection if it is still there
+  file: path=/home/solr/collection1 state=absent
+  sudo: true
+
+- name: change the name of the collection
+  lineinfile: dest=/home/solr/{{ default_collection_name }}/core.properties regexp="^name=" insertafter="^name=" line="name={{ default_collection_name }}"
+  sudo: true
+
+- name: create a solr lib directory
+  file: path=/home/solr/lib state=directory
+  sudo: true
+
+- name: list all jar files that are part of solr (in order to copy)
+  shell: ls -1 /home/{{ user }}/solr-4.7.2/dist/ | grep .jar
+  register: solrjarfiles
+  changed_when: false
+
+- name: copy solr lib files
+  command: cp /home/{{ user }}/solr-4.7.2/dist/{{ item }} /home/solr/lib/{{ item }} creates=/home/solr/lib/{{ item }}
+  with_items: solrjarfiles.stdout_lines
+  sudo: true
+
+- name: force restart of tomcat6
+  service: name=tomcat6 state=restarted
+  sudo: true
+
+- name: add WEB-INF directory
+  command: mkdir -p /var/lib/tomcat6/webapps/solr/WEB-INF/
+  sudo: true
+
+- name: copy the web.xml tomcat solr integration file
+  copy: src=redhat_web.xml dest=/var/lib/tomcat6/webapps/solr/WEB-INF/web.xml
+  sudo: true
+
+- name: make the {{ default_collection_name }} data directory
+  command: mkdir /home/solr/{{ default_collection_name }}/data creates=/home/solr/{{ default_collection_name }}/data
+  sudo: true
+
+- name: get Drupal solr integration via search_api_solr
+  git:
+    repo: http://git.drupal.org/project/{{ drupal_solr_package }}.git
+    dest: /home/{{ user }}/drupal_solr
+    version: 7.x-1.6
+    depth: 1
+  when: drupal_solr_package == "search_api_solr"
+
+- name: get Drupal solr integration via apachesolr
+  git:
+    repo: http://git.drupal.org/project/{{ drupal_solr_package }}.git
+    dest: /home/{{ user }}/drupal_solr
+    version: 7.x-1.7
+    depth: 1
+  when: drupal_solr_package == "apachesolr"
+
+- name: copy Drupal Solr config into Solr
+  shell: cp -r /home/{{ user }}/drupal_solr/solr-conf/4.x/. /home/solr/{{ default_collection_name }}/conf/
+  when: drupal_solr_package == "search_api_solr"
+  sudo: true
+  notify:
+   - restart tomcat6
+
+- name: copy Drupal Solr config into Solr
+  shell: cp -r /home/{{ user }}/drupal_solr/solr-conf/solr-4.x/. /home/solr/{{ default_collection_name }}/conf/
+  when: drupal_solr_package == "apachesolr"
+  sudo: true
+  notify:
+   - restart tomcat6
+
+- name: make the lib/contrib directory for the extension to live in
+  command: mkdir -p /home/solr/lib/contrib creates=/home/solr/lib/contrib
+  sudo: true
+
+- name: copy the needed class directories over
+  command: cp -r /home/{{ user }}/solr-4.7.2/contrib/{{ item }} /home/solr/lib/contrib/{{ item }} creates=/home/solr/lib/contrib/{{ item }}
+  sudo: true
+  with_items:
+    - analysis-extras
+    - clustering
+    - dataimporthandler
+    - extraction
+    - langid
+    - uima
+    - velocity
+
+- name: ensure tomcat/Solr directory has correct owner
+  file: path=/home/solr owner=tomcat group=tomcat recurse=yes
+  sudo: true
