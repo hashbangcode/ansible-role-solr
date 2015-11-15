@@ -1,6 +1,6 @@
 ---
 - name: download Solr
-  command: wget http://www.mirrorservice.org/sites/ftp.apache.org/lucene/solr/4.7.2/solr-4.7.2.tgz chdir=/home/{{ user }} creates=/home/{{ user }}/solr-4.7.2.tgz
+  command: wget {{ default_solr_source }}4.7.2/solr-4.7.2.tgz chdir=/home/{{ user }} creates=/home/{{ user }}/solr-4.7.2.tgz
 
 - name: extract Solr
   command: tar -zxf /home/{{ user }}/solr-4.7.2.tgz chdir=/home/{{ user }} creates=/home/{{ user }}/solr-4.7.2
