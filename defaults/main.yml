@@ -6,4 +6,4 @@ drupal_solr_package: "search_api_solr"
 default_collection_name: "vlad"
 # See https://www.apache.org/dyn/closer.cgi/lucene/solr/ for a list of
 # available mirrors.
-default_solr_source: "http://www.mirrorservice.org/sites/ftp.apache.org/lucene/solr/"
+default_solr_source: "https://archive.apache.org/dist/lucene/solr/"
